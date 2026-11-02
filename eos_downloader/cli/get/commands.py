@@ -41,6 +41,43 @@ from .utils import (
     download_from_containerlab_topology,
 )
 
+# ##############################################################################
+# [CUSTOM START - POINT 1] minfiles 자동 주입 모듈(import) 및 함수 정의
+# ##############################################################################
+import subprocess
+
+def _inject_minfiles_to_root(image_path: Path) -> None:
+    """
+    Injects files from /root/eos-scripts/minfiles into the root (/) of the QEMU disk image.
+    """
+    minfiles_dir = Path("/root/eos-scripts/minfiles")
+    
+    if not minfiles_dir.exists() or not any(minfiles_dir.iterdir()):
+        typer.echo(f"[-] minfiles directory ({minfiles_dir}) does not exist or is empty. Skipping injection.")
+        return
+
+    typer.echo(f"[+] Injecting minfiles from {minfiles_dir} into disk image root: {image_path}")
+    
+    try:
+        cmd = [
+            "virt-copy-in",
+            "-a", str(image_path),
+            str(minfiles_dir) + "/.",
+            "/"
+        ]
+        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        typer.echo(f"[+] Successfully injected minfiles: {result.stdout.strip()}")
+        
+    except subprocess.CalledProcessError as e:
+        typer.echo(f"[-] Error executing virt-copy-in: {e.stderr}")
+    except FileNotFoundError:
+        typer.echo("[-] Error: 'virt-copy-in' command not found. Please install libguestfs-tools on the host.")
+# ##############################################################################
+# [CUSTOM END - POINT 1]
+# ##############################################################################
+
+
+
 app = typer.Typer(
     cls=AliasedTyperGroup,
     no_args_is_help=True,
@@ -223,6 +260,16 @@ def eos(
         else:
             try:
                 cli.provision_eve(eos_dl_obj, noztp=True, progress=progress)
+                # ##############################################################################
+                # [CUSTOM START - POINT 2] EVE-NG 프로비져닝 완료 후 hda.qcow2에 minfiles 주입 실행
+                # ##############################################################################
+                if Path(output).exists():
+                    for qcow2_file in Path(output).glob("**/hda.qcow2"):
+                        _inject_minfiles_to_root(qcow2_file)
+                # ##############################################################################
+                # [CUSTOM END - POINT 2]
+                # ##############################################################################
+            
             except Exception as error:  # pylint: disable=broad-exception-caught
                 print_exception_and_exit(console, debug, error)
 
