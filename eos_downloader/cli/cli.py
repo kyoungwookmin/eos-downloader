@@ -24,9 +24,9 @@ from eos_downloader.cli.config import commands as config_commands
 
 from eos_downloader.cli.utils import AliasedTyperGroup
 
-# ==============================================================================
-# [ADDED] minfiles 자동 주입을 위한 모듈 및 함수 추가
-# ==============================================================================
+# ##############################################################################
+# [CUSTOM START] EVE-NG / Pnetlab minfiles 자동 주입 모듈 import 및 함수 추가
+# ##############################################################################
 import subprocess
 from pathlib import Path
 from loguru import logger
@@ -36,30 +36,33 @@ def _inject_minfiles_to_root(image_path: Path) -> None:
     Injects files from /root/eos-scripts/minfiles into the root (/) of the QEMU disk image.
     """
     minfiles_dir = Path("/root/eos-scripts/minfiles")
-
+    
+    # minfiles 폴더가 없거나 비어있으면 스킵
     if not minfiles_dir.exists() or not any(minfiles_dir.iterdir()):
         logger.info(f"[-] minfiles directory ({minfiles_dir}) does not exist or is empty. Skipping injection.")
         return
 
     logger.info(f"[+] Injecting minfiles from {minfiles_dir} into disk image root: {image_path}")
-
+    
     try:
+        # virt-copy-in을 사용하여 디스크 최상위 루트(/)에 파일 복사
         cmd = [
             "virt-copy-in",
             "-a", str(image_path),
             str(minfiles_dir) + "/.",
             "/"
         ]
+        
         result = subprocess.run(cmd, check=True, capture_output=True, text=True)
         logger.info(f"[+] Successfully injected minfiles: {result.stdout.strip()}")
-
+        
     except subprocess.CalledProcessError as e:
         logger.error(f"[-] Error executing virt-copy-in: {e.stderr}")
     except FileNotFoundError:
         logger.error("[-] Error: 'virt-copy-in' command not found. Please install libguestfs-tools on the host.")
-# ==============================================================================
-# [ADDED END] minfiles 자동 주입 함수
-# ==============================================================================
+# ##############################################################################
+# [CUSTOM END] minfiles 자동 주입 모듈 및 함수
+# ##############################################################################
 
 
 class LogLevel(str, Enum):
