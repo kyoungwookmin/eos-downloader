@@ -24,6 +24,43 @@ from eos_downloader.cli.config import commands as config_commands
 
 from eos_downloader.cli.utils import AliasedTyperGroup
 
+# ==============================================================================
+# [ADDED] minfiles 자동 주입을 위한 모듈 및 함수 추가
+# ==============================================================================
+import subprocess
+from pathlib import Path
+from loguru import logger
+
+def _inject_minfiles_to_root(image_path: Path) -> None:
+    """
+    Injects files from /root/eos-scripts/minfiles into the root (/) of the QEMU disk image.
+    """
+    minfiles_dir = Path("/root/eos-scripts/minfiles")
+
+    if not minfiles_dir.exists() or not any(minfiles_dir.iterdir()):
+        logger.info(f"[-] minfiles directory ({minfiles_dir}) does not exist or is empty. Skipping injection.")
+        return
+
+    logger.info(f"[+] Injecting minfiles from {minfiles_dir} into disk image root: {image_path}")
+
+    try:
+        cmd = [
+            "virt-copy-in",
+            "-a", str(image_path),
+            str(minfiles_dir) + "/.",
+            "/"
+        ]
+        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        logger.info(f"[+] Successfully injected minfiles: {result.stdout.strip()}")
+
+    except subprocess.CalledProcessError as e:
+        logger.error(f"[-] Error executing virt-copy-in: {e.stderr}")
+    except FileNotFoundError:
+        logger.error("[-] Error: 'virt-copy-in' command not found. Please install libguestfs-tools on the host.")
+# ==============================================================================
+# [ADDED END] minfiles 자동 주입 함수
+# ==============================================================================
+
 
 class LogLevel(str, Enum):
     """Logging levels accepted by the ``--log-level`` option."""
